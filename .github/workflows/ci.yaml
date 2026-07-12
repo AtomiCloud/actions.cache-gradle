@@ -1,0 +1,34 @@
+name: 'Continous Integration'
+on:
+  push:
+jobs:
+  precommit:
+    name: Pre-Commit
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-action-nix-store-cache
+      - nscloud-git-mirror-1gb
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+
+      - name: Run Pre-commit checks
+        run: nix develop .#ci -c scripts/ci/pre-commit.sh
+  release:
+    name: Release
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - precommit
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-4x8-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-releaser-nix-store-cache
+      - nscloud-git-mirror-1gb
+    steps:
+      - uses: AtomiCloud/actions.setup-nix@v3
+      - uses: AtomiCloud/actions.cache-npm@v1
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix develop .#releaser -c scripts/ci/release.sh
