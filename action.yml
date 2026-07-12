@@ -4,6 +4,9 @@ inputs:
   namespacelabs:
     default: 'true'
     description: "Using Namespace Lab's runners"
+  remote-build-cache:
+    default: 'true'
+    description: "Provision Namespace's remote Gradle build cache (shared across all git refs, unlike cache volumes) and enable org.gradle.caching"
 branding:
   color: blue
   icon: archive
@@ -18,6 +21,27 @@ runs:
           ~/.gradle/caches
           ~/.gradle/wrapper
       if: inputs.namespacelabs == 'true'
+
+    # Cache volumes fork per git ref from the default branch's base, so runs on
+    # fresh refs (e.g. tag-triggered releases) never see task outputs written on
+    # other refs. The remote build cache is shared across all refs.
+    - name: Remote Gradle build cache
+      shell: bash
+      if: inputs.namespacelabs == 'true' && inputs.remote-build-cache == 'true'
+      run: |
+        set -euo pipefail
+        if ! command -v nsc >/dev/null 2>&1; then
+          echo "::warning::nsc not found — skipping the remote Gradle build cache"
+          exit 0
+        fi
+        mkdir -p "$HOME/.gradle/init.d"
+        if nsc cache gradle setup --init-gradle "$HOME/.gradle/init.d/nsc-remote-cache.gradle"; then
+          if ! grep -qs "org.gradle.caching=true" "$HOME/.gradle/gradle.properties"; then
+            echo "org.gradle.caching=true" >>"$HOME/.gradle/gradle.properties"
+          fi
+        else
+          echo "::warning::nsc cache gradle setup failed — continuing without the remote build cache"
+        fi
 
     # NATIVE VERSION
     - name: Cache Gradle
